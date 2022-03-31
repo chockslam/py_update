@@ -1,7 +1,8 @@
 # Files used
-FILENAME_JSON = ''   # .json file to 
+FILENAME_CLASS_JSON = ''                    # .json file to 
+FILENAME_DET_JSON = ''                      # .json file to 
 FILENAME_CSV = 'SQL'                        # CSV file to be written and send.
-EXTENSION_CSV = '.csv'                 # json extension
+EXTENSION_CSV = '.csv'                      # json extension
 
 # location of PHP script
 WP_URL = 'http://bcausam.co.uk/charities-tables-update/'
