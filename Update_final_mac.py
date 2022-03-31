@@ -28,7 +28,7 @@ def find_index(elements, value):
 def GetJSON(path):
     try:
         f = open(path)
-        fstr = f.read()[3:]
+        fstr = f.read()
         f.close()
         try:
             data = json.loads(fstr)
