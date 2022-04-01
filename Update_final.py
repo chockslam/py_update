@@ -1,3 +1,4 @@
+from asyncio.windows_events import NULL
 from string import digits
 import tkinter
 from tkinter import messagebox
@@ -39,22 +40,54 @@ def GetJSON(path):
         messagebox.showerror("File not found", "Check whether the 'Choose Json File' field points to the actual file")
     return data
 
-# Returns the list of all funders from Decoded Json.
-# data - decoded .json file
-def getAndFilterFunders(classif, g_det, threshold):
+
+def filterRegisteredCharities(g_det, threshold):
     inter_res = []
     for row in g_det:
         if row['charity_registration_status'] == 'Registered':
             if isinstance(row['latest_expenditure'], float) :
                 if row['latest_expenditure'] >= threshold:
-                    inter_res.append(row['registered_charity_number'])
-            
+                    newRow = {
+                        'id': row['registered_charity_number'],
+                        'name': row['charity_name'],
+                        'class_codes': "",
+                        'mob_phone': row['charity_contact_phone'],
+                        'email': row['charity_contact_email'],
+                        'web': row['charity_contact_web'],
+                        'expenditure': row['latest_expenditure']
+                    }
+                    inter_res.append(newRow)
+    return inter_res
+    
+
+def getFundersIDs(classif):
+    classif_ids = []
+    classif_ids.append(0) # to prevent bug with binary search, when resolve first element in the array.
+    for row in classif:
+        if row['classification_type'] == 'How' and row['classification_code'] == 302: 
+            classif_ids.append(row['registered_charity_number'])
+    return classif_ids
+
+def getArrayOfIDs(allDet):
+    IDs = []
+    IDs.append(0) # to prevent bug with binary search, when resolve first element in the array.
+    for row in allDet:
+        if row != 0:
+            IDs.append(row['id'])
+    return IDs
+
+# Returns the list of all funders from Decoded Json.
+# data - decoded .json file
+def getAndFilterFunders(classif, g_det, threshold):
+    inter_res = filterRegisteredCharities(g_det,threshold)
+    classif_id = getFundersIDs(classif)
 
     res = []
     res.append(0) # to prevent bug with binary search, when resolve first element in the array.
-    for row in classif:
-        if row['classification_type'] == 'How' and row['classification_code'] == 302 and find_index(inter_res, row['registered_charity_number']):
-            res.append(row['registered_charity_number'])
+    for row in inter_res:
+        thisPos = find_index(classif_id, row['id'])
+        if thisPos:
+            res.append(row)    
     return res
 
 # Returns a dictionary where 
@@ -63,15 +96,17 @@ def getAndFilterFunders(classif, g_det, threshold):
 # data - decoded .json data.
 # funders - list of funders id.
 def getClassifications(data, funders):
-    res = {}
+    res = []
+    arrayOfIDs = getArrayOfIDs(funders)
     for row in data:
         if row['classification_type'] == 'What':
-            if find_index(funders, row['registered_charity_number']):
-                if not row['registered_charity_number'] in res:
-                    res[row['registered_charity_number']] = str(row['classification_code'])
+            pos = find_index(arrayOfIDs, row['registered_charity_number'])
+            if pos:
+                if funders[pos]['class_codes'] == "":
+                    funders[pos]['class_codes'] += str(row['classification_code'])
                 else:
-                    res[row['registered_charity_number']] += ";" + str(row['classification_code'])
-    return res
+                    funders[pos]['class_codes'] += ";" + str(row['classification_code'])
+    return funders
 
 # Encapsulates the first stage of the script, which is resposible for extracting the classification of all the funders into the dictionary data-structure
 # path - relative path to the .json file to be processed.
@@ -85,10 +120,11 @@ def getInputToDB(path_class, path_det, threshold):
 # Method that writes a dictionary to the 'SQL.csv' file
 # inputToCSV - dictionary data structure.
 def writeFileCSV(inputToCSV):
+    del inputToCSV[0]
     with open(constants_final.FILENAME_CSV+constants_final.EXTENSION_CSV, 'w', newline='') as csvfile:
         spamWrite = csv.writer(csvfile)
-        for key in inputToCSV:
-            spamWrite.writerow([key, inputToCSV[key]])
+        for row in inputToCSV:
+            spamWrite.writerow([row['id'], row['name'], row['class_codes'], row['mob_phone'], row['email'], row['web'], row['expenditure']])
 
 # Method that sends a CSV file to the IONOS server via SFTP protocol
 # FTPfolders - array of folders located on the server, that represent an absolute path of the directory, where .CSV file need to be sent to.
