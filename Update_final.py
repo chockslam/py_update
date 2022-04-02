@@ -218,7 +218,7 @@ tkinter.Label(window, text="password").grid(row=2)
 tkinter.Label(window, text="classification json file").grid(row=3)
 tkinter.Label(window, text="general details json file").grid(row=4)
 tkinter.Label(window, text="path").grid(row=5)
-tkinter.Label(window, text="threshold").grid(row=6)
+tkinter.Label(window, text="minimum expenditure threshold").grid(row=6)
 tkinter.Label(window, text="Update script destination").grid(row=7)
 
 # Input fields
