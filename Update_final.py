@@ -40,7 +40,7 @@ def GetJSON(path):
         messagebox.showerror("File not found", "Check whether the 'Choose Json File' field points to the actual file")
     return data
 
-
+# Returns array of registered charities that are filtered usin threshold variable according to their expenditure.
 def filterRegisteredCharities(g_det, threshold):
     inter_res = []
     for row in g_det:
@@ -60,6 +60,7 @@ def filterRegisteredCharities(g_det, threshold):
     return inter_res
     
 
+# Returns array of funders' ids
 def getFundersIDs(classif):
     classif_ids = []
     classif_ids.append(0) # to prevent bug with binary search, when resolve first element in the array.
@@ -68,6 +69,7 @@ def getFundersIDs(classif):
             classif_ids.append(row['registered_charity_number'])
     return classif_ids
 
+# returns just array of charities' ids
 def getArrayOfIDs(allDet):
     IDs = []
     IDs.append(0) # to prevent bug with binary search, when resolve first element in the array.
@@ -121,7 +123,7 @@ def getInputToDB(path_class, path_det, threshold):
 # inputToCSV - dictionary data structure.
 def writeFileCSV(inputToCSV):
     del inputToCSV[0]
-    with open(constants_final.FILENAME_CSV+constants_final.EXTENSION_CSV, 'w', newline='') as csvfile:
+    with open(constants_final.FILENAME_CSV+constants_final.EXTENSION_CSV, 'w', newline='', encoding="utf-8") as csvfile:
         spamWrite = csv.writer(csvfile)
         for row in inputToCSV:
             spamWrite.writerow([row['id'], row['name'], row['class_codes'], row['mob_phone'], row['email'], row['web'], row['expenditure']])
@@ -192,7 +194,10 @@ def handle_process():
     constants_final.FTP_PATH = server_path.get().split(sep=",")
     constants_final.FILENAME_CLASS_JSON = classPath.get()
     constants_final.FILENAME_DET_JSON = detPath.get()
-    constants_final.THRESHOLD = float(threshold.get())
+    if threshold.get().isdigit():
+        constants_final.THRESHOLD = float(threshold.get())
+    else:
+        constants_final.THRESHOLD = float(0)
     constants_final.WP_URL = dest_url.get()
     encapsulation(
               constants_final.FILENAME_CLASS_JSON,
