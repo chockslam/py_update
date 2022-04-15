@@ -1,7 +1,8 @@
 # Files used
-FILENAME_JSON = ''   # .json file to 
+FILENAME_CLASS_JSON = ''                    # .json file to 
+FILENAME_DET_JSON = ''                      # .json file to 
 FILENAME_CSV = 'SQL'                        # CSV file to be written and send.
-EXTENSION_CSV = '.csv'                 # json extension
+EXTENSION_CSV = '.csv'                      # json extension
 
 # location of PHP script
 WP_URL = 'http://bcausam.co.uk/charities-tables-update/'
@@ -15,3 +16,6 @@ FTP_HOST = 'access834021495.webspace-data.io'
 FTP_USERNAME = 'u101433123'
 FTP_PASSWORD = ''                       # note that storing password in the text is not safe
 FTP_PORT = 22
+
+
+THRESHOLD = 10000.0

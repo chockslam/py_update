@@ -135,9 +135,9 @@ def handle_process():
     constants_final.FTP_USERNAME = username.get()
     constants_final.FTP_PASSWORD = password.get()
     constants_final.FTP_PATH = server_path.get().split(sep=",")
-    constants_final.FILENAME_JSON = path.get()
+    constants_final.FILENAME_CLASS_JSON = path.get()
     constants_final.WP_URL = dest_url.get()
-    encapsulation(constants_final.FILENAME_JSON,
+    encapsulation(constants_final.FILENAME_CLASS_JSON,
               constants_final.FILENAME_CSV+constants_final.EXTENSION_CSV,
               constants_final.FTP_PATH,
               constants_final.WP_URL)

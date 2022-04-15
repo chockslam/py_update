@@ -1,3 +1,5 @@
+from asyncio.windows_events import NULL
+from string import digits
 import tkinter
 from tkinter import messagebox
 from tkinter import filedialog
@@ -27,8 +29,8 @@ def find_index(elements, value):
 # Json Decode Method.
 def GetJSON(path):
     try:
-        f = open(path)
-        fstr = f.read()[3:]
+        f = open(path, encoding='UTF8')
+        fstr = f.read()[1:]
         f.close()
         try:
             data = json.loads(fstr)
@@ -38,14 +40,56 @@ def GetJSON(path):
         messagebox.showerror("File not found", "Check whether the 'Choose Json File' field points to the actual file")
     return data
 
+# Returns array of registered charities that are filtered usin threshold variable according to their expenditure.
+def filterRegisteredCharities(g_det, threshold):
+    inter_res = []
+    for row in g_det:
+        if row['charity_registration_status'] == 'Registered':
+            if isinstance(row['latest_expenditure'], float) :
+                if row['latest_expenditure'] >= threshold:
+                    newRow = {
+                        'id': row['registered_charity_number'],
+                        'name': row['charity_name'],
+                        'class_codes': "",
+                        'mob_phone': row['charity_contact_phone'],
+                        'email': row['charity_contact_email'],
+                        'web': row['charity_contact_web'],
+                        'expenditure': row['latest_expenditure']
+                    }
+                    inter_res.append(newRow)
+    return inter_res
+    
+
+# Returns array of funders' ids
+def getFundersIDs(classif):
+    classif_ids = []
+    classif_ids.append(0) # to prevent bug with binary search, when resolve first element in the array.
+    for row in classif:
+        if row['classification_type'] == 'How' and row['classification_code'] == 302: 
+            classif_ids.append(row['registered_charity_number'])
+    return classif_ids
+
+# returns just array of charities' ids
+def getArrayOfIDs(allDet):
+    IDs = []
+    IDs.append(0) # to prevent bug with binary search, when resolve first element in the array.
+    for row in allDet:
+        if row != 0:
+            IDs.append(row['id'])
+    return IDs
+
 # Returns the list of all funders from Decoded Json.
 # data - decoded .json file
-def getFunders(data):
+def getAndFilterFunders(classif, g_det, threshold):
+    inter_res = filterRegisteredCharities(g_det,threshold)
+    classif_id = getFundersIDs(classif)
+
     res = []
     res.append(0) # to prevent bug with binary search, when resolve first element in the array.
-    for row in data:
-        if row['classification_type'] == 'How' and row['classification_code'] == 302:
-            res.append(row['registered_charity_number'])
+    for row in inter_res:
+        thisPos = find_index(classif_id, row['id'])
+        if thisPos:
+            res.append(row)    
     return res
 
 # Returns a dictionary where 
@@ -54,31 +98,35 @@ def getFunders(data):
 # data - decoded .json data.
 # funders - list of funders id.
 def getClassifications(data, funders):
-    res = {}
+    res = []
+    arrayOfIDs = getArrayOfIDs(funders)
     for row in data:
         if row['classification_type'] == 'What':
-            if find_index(funders, row['registered_charity_number']):
-                if not row['registered_charity_number'] in res:
-                    res[row['registered_charity_number']] = str(row['classification_code'])
+            pos = find_index(arrayOfIDs, row['registered_charity_number'])
+            if pos:
+                if funders[pos]['class_codes'] == "":
+                    funders[pos]['class_codes'] += str(row['classification_code'])
                 else:
-                    res[row['registered_charity_number']] += ";" + str(row['classification_code'])
-    return res
+                    funders[pos]['class_codes'] += ";" + str(row['classification_code'])
+    return funders
 
 # Encapsulates the first stage of the script, which is resposible for extracting the classification of all the funders into the dictionary data-structure
 # path - relative path to the .json file to be processed.
-def getInputToDB(path):
-    rawData = GetJSON(path)
-    funders = getFunders(rawData)
-    inputToDb = getClassifications(rawData, funders)
+def getInputToDB(path_class, path_det, threshold):
+    classif_data = GetJSON(path_class)
+    details_data = GetJSON(path_det)
+    funders = getAndFilterFunders(classif_data, details_data, threshold)
+    inputToDb = getClassifications(classif_data, funders)
     return inputToDb
 
 # Method that writes a dictionary to the 'SQL.csv' file
 # inputToCSV - dictionary data structure.
 def writeFileCSV(inputToCSV):
-    with open(constants_final.FILENAME_CSV+constants_final.EXTENSION_CSV, 'w', newline='') as csvfile:
+    del inputToCSV[0]
+    with open(constants_final.FILENAME_CSV+constants_final.EXTENSION_CSV, 'w', newline='', encoding="utf-8") as csvfile:
         spamWrite = csv.writer(csvfile)
-        for key in inputToCSV:
-            spamWrite.writerow([key, inputToCSV[key]])
+        for row in inputToCSV:
+            spamWrite.writerow([row['id'], row['name'], row['class_codes'], row['mob_phone'], row['email'], row['web'], row['expenditure']])
 
 # Method that sends a CSV file to the IONOS server via SFTP protocol
 # FTPfolders - array of folders located on the server, that represent an absolute path of the directory, where .CSV file need to be sent to.
@@ -104,8 +152,8 @@ def FTPto(folders, file):
 # jsonFile - .json file to decode (Relative path)
 # csvFILE - .csv file to write (Relative path)
 # FTPfolders - array of folders located on the server, that represent an absolute path of the directory, where .CSV file need to be sent to.
-def encapsulation(jsonFile, csvFILE, FTPfolders, destURL):
-    writeFileCSV(getInputToDB(jsonFile))
+def encapsulation(jsonFile_class, jsonFile_det, csvFILE, FTPfolders, destURL, threshold):
+    writeFileCSV(getInputToDB(jsonFile_class, jsonFile_det, threshold))
     FTPto(FTPfolders, csvFILE)    
     
     # Delete local SQL.csv file if exists
@@ -116,6 +164,9 @@ def encapsulation(jsonFile, csvFILE, FTPfolders, destURL):
     messagebox.showinfo("Done", "You can now visit http://bcausam.co.uk/charities-tables-update/ and wait until page is loaded to update your database ")
     webbrowser.open(destURL)
 
+# classPath = 'C:/Users/glebs/Downloads/publicextract.charity/publicextract.charity.json'
+# print(GetJSON(classPath)[0])
+
 
 # encapsulation(constants_final.FILENAME_JSON+constants_final.EXTENSION_JSON,
 #               constants_final.FILENAME_CSV+constants_final.EXTENSION_CSV,
@@ -123,10 +174,16 @@ def encapsulation(jsonFile, csvFILE, FTPfolders, destURL):
 
 
 # Callback function to resolve path from filedialog and insert it into appropriate entry filed.
-def handle_path():
+def handle_class_path():
     fd = filedialog.askopenfilename()
-    path.delete(0,"end")
-    path.insert(0,fd)
+    classPath.delete(0,"end")
+    classPath.insert(0,fd)
+
+# Callback function to resolve path from filedialog and insert it into appropriate entry filed.
+def handle_det_path():
+    fd = filedialog.askopenfilename()
+    detPath.delete(0,"end")
+    detPath.insert(0,fd)
 
 # Handle main functionality of the program
 def handle_process():
@@ -135,12 +192,21 @@ def handle_process():
     constants_final.FTP_USERNAME = username.get()
     constants_final.FTP_PASSWORD = password.get()
     constants_final.FTP_PATH = server_path.get().split(sep=",")
-    constants_final.FILENAME_JSON = path.get()
+    constants_final.FILENAME_CLASS_JSON = classPath.get()
+    constants_final.FILENAME_DET_JSON = detPath.get()
+    if threshold.get().isdigit():
+        constants_final.THRESHOLD = float(threshold.get())
+    else:
+        constants_final.THRESHOLD = float(0)
     constants_final.WP_URL = dest_url.get()
-    encapsulation(constants_final.FILENAME_JSON,
+    encapsulation(
+              constants_final.FILENAME_CLASS_JSON,
+              constants_final.FILENAME_DET_JSON,
               constants_final.FILENAME_CSV+constants_final.EXTENSION_CSV,
               constants_final.FTP_PATH,
-              constants_final.WP_URL)
+              constants_final.WP_URL,
+              constants_final.THRESHOLD
+              )
 
 # Create windows
 window = tkinter.Tk()
@@ -149,25 +215,31 @@ window = tkinter.Tk()
 tkinter.Label(window, text="host").grid(row=0)
 tkinter.Label(window, text="username").grid(row=1)
 tkinter.Label(window, text="password").grid(row=2)
-tkinter.Label(window, text="Choose .Json File").grid(row=3)
-tkinter.Label(window, text="path").grid(row=4)
-tkinter.Label(window, text="Update script destination").grid(row=5)
+tkinter.Label(window, text="classification json file").grid(row=3)
+tkinter.Label(window, text="general details json file").grid(row=4)
+tkinter.Label(window, text="path").grid(row=5)
+tkinter.Label(window, text="minimum expenditure threshold").grid(row=6)
+tkinter.Label(window, text="Update script destination").grid(row=7)
 
 # Input fields
 host = tkinter.Entry(window)
 username = tkinter.Entry(window)
 password = tkinter.Entry(window)
-path = tkinter.Entry(window)
+classPath = tkinter.Entry(window)
+detPath = tkinter.Entry(window)
 server_path = tkinter.Entry(window)
+threshold = tkinter.Entry(window)
 dest_url = tkinter.Entry(window)
 
 # Arrange Input fields in the grid.
 host.grid(row=0, column=1)
 username.grid(row=1, column=1)
 password.grid(row=2, column=1)
-path.grid(row=3, column=1)
-server_path.grid(row=4, column=1)
-dest_url.grid(row=5, column=1)
+classPath.grid(row=3, column=1)
+detPath.grid(row=4, column=1)
+server_path.grid(row=5, column=1)
+threshold.grid(row=6, column=1)
+dest_url.grid(row=7, column=1)
 
 # Initial values
 host.insert(0,constants_final.FTP_HOST)
@@ -176,12 +248,16 @@ server_path.insert(0,constants_final.GUI_FTP_PATH)
 dest_url.insert(0,constants_final.WP_URL)
 
 # File Dialog trigger
-button1 = tkinter.Button(master=window, text="...", command=lambda:handle_path())
+button1 = tkinter.Button(master=window, text="...", command=lambda:handle_class_path())
 button1.grid(row=3, column=2, sticky="nsew" )
+
+# File Dialog trigger
+button1 = tkinter.Button(master=window, text="...", command=lambda:handle_det_path())
+button1.grid(row=4, column=2, sticky="nsew" )
 
 # Processing .json and other main functionality trigger
 button2 = tkinter.Button(master=window, text="Process File", command=lambda:handle_process())
-button2.grid(row=6, column=0, sticky="nsew" )
+button2.grid(row=8, column=0, sticky="nsew" )
 
 # GUI Application loop
 window.mainloop()
