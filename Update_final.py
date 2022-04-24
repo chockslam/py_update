@@ -124,7 +124,10 @@ def getClassifications(data, funders):
 def getInputToDB(path_class, path_det, threshold):
     classif_data = GetJSON(path_class)
     details_data = GetJSON(path_det)
-    funders = getAndFilterFunders(classif_data, details_data, threshold)
+    try:
+        funders = getAndFilterFunders(classif_data, details_data, threshold)
+    except Exception:
+        messagebox.showerror("Incorrect files provided", "Make sure files provided are correct. May be you misplaced them into incorrect fields?")
     inputToDb = getClassifications(classif_data, funders)
     return inputToDb
 

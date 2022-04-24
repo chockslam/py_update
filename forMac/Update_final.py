@@ -1,4 +1,4 @@
-from asyncio.windows_events import NULL
+# from asyncio.windows_events import NULL
 from string import digits
 import tkinter
 from tkinter import messagebox
@@ -27,6 +27,7 @@ def find_index(elements, value):
             right = middle - 1
 
 # Json Decode Method.
+# path - absolute/local path to the .json file.
 def GetJSON(path):
     try:
         f = open(path, encoding='UTF8')
@@ -40,7 +41,9 @@ def GetJSON(path):
         messagebox.showerror("File not found", "Check whether the 'Choose Json File' field points to the actual file")
     return data
 
-# Returns array of registered charities that are filtered usin threshold variable according to their expenditure.
+# Returns array of registered charities that are filtered using threshold variable according to their expenditure.
+# threshold - expenditure threhold, which indicates minimum expenditure needed to be considered for adding to the database of funders.
+# g_det - processed json file, which contains general information about funders.
 def filterRegisteredCharities(g_det, threshold):
     inter_res = []
     for row in g_det:
@@ -61,6 +64,7 @@ def filterRegisteredCharities(g_det, threshold):
     
 
 # Returns array of funders' ids
+# classif - processed .json file, which contains classification information about charities.
 def getFundersIDs(classif):
     classif_ids = []
     classif_ids.append(0) # to prevent bug with binary search, when resolve first element in the array.
@@ -70,6 +74,7 @@ def getFundersIDs(classif):
     return classif_ids
 
 # returns just array of charities' ids
+# allDet - return from filterRegisteredCharities(...) function
 def getArrayOfIDs(allDet):
     IDs = []
     IDs.append(0) # to prevent bug with binary search, when resolve first element in the array.
@@ -78,8 +83,10 @@ def getArrayOfIDs(allDet):
             IDs.append(row['id'])
     return IDs
 
-# Returns the list of all funders from Decoded Json.
-# data - decoded .json file
+# Returns the list of all currently active funders with necessery details from Decoded Json files.
+# classif - decoded .json charity classification file.
+# g_det - decoded .json general details file.
+# threshold - expenditure threshold, which indicates minimum expenditure needed to be considered for adding to the database of funders.
 def getAndFilterFunders(classif, g_det, threshold):
     inter_res = filterRegisteredCharities(g_det,threshold)
     classif_id = getFundersIDs(classif)
@@ -92,9 +99,9 @@ def getAndFilterFunders(classif, g_det, threshold):
             res.append(row)    
     return res
 
-# Returns a dictionary where 
-### key = id of the funder, e.g. 200002
-### value = concatinated string of its "What" classification, eg. value = "102;105;112" 
+#   Returns a dictionary where 
+    ### key = id of the funder, e.g. 200002
+    ### value = concatinated string of its "What" classification, eg. value = "102;105;112" 
 # data - decoded .json data.
 # funders - list of funders id.
 def getClassifications(data, funders):
@@ -111,11 +118,16 @@ def getClassifications(data, funders):
     return funders
 
 # Encapsulates the first stage of the script, which is resposible for extracting the classification of all the funders into the dictionary data-structure
-# path - relative path to the .json file to be processed.
+# path_class - relative path to the charity classification .json file to be processed.
+# path_det - relative path to the charity general details .json file to be processed.
+# threshold - expenditure threshold, which indicates minimum expenditure needed to be considered for adding to the database of funders.
 def getInputToDB(path_class, path_det, threshold):
     classif_data = GetJSON(path_class)
     details_data = GetJSON(path_det)
-    funders = getAndFilterFunders(classif_data, details_data, threshold)
+    try:
+        funders = getAndFilterFunders(classif_data, details_data, threshold)
+    except Exception:
+        messagebox.showerror("Incorrect files provided", "Make sure files provided are correct. May be you misplaced them into incorrect fields?")
     inputToDb = getClassifications(classif_data, funders)
     return inputToDb
 
@@ -129,7 +141,7 @@ def writeFileCSV(inputToCSV):
             spamWrite.writerow([row['id'], row['name'], row['class_codes'], row['mob_phone'], row['email'], row['web'], row['expenditure']])
 
 # Method that sends a CSV file to the IONOS server via SFTP protocol
-# FTPfolders - array of folders located on the server, that represent an absolute path of the directory, where .CSV file need to be sent to.
+# folders - array of folders located on the server, that represent an absolute path of the directory, where .CSV file need to be sent to.
 # file - .csv file to write (Relative path)
 def FTPto(folders, file):
     cnopts = pysftp.CnOpts()
@@ -149,9 +161,12 @@ def FTPto(folders, file):
 # 1. Decoding and processing JSON file into Dictionary
 # 2. Writing the information to the SQL.csv file
 # 3. FTP .CSV file to the IONOS hosting server
-# jsonFile - .json file to decode (Relative path)
+# jsonFile_class - relative path to the charity classification .json file to be processed.（Relative path）
+# jsonFile_det - relative path to the charity general details .json file to be processed.（Relative path）
 # csvFILE - .csv file to write (Relative path)
 # FTPfolders - array of folders located on the server, that represent an absolute path of the directory, where .CSV file need to be sent to.
+# threshold - expenditure threshold, which indicates minimum expenditure needed to be considered for adding to the database of funders.
+# destURL - URL, which will be open after successful execution of the script. (Opening the page results into actual update of the database)
 def encapsulation(jsonFile_class, jsonFile_det, csvFILE, FTPfolders, destURL, threshold):
     writeFileCSV(getInputToDB(jsonFile_class, jsonFile_det, threshold))
     FTPto(FTPfolders, csvFILE)    
@@ -164,13 +179,6 @@ def encapsulation(jsonFile_class, jsonFile_det, csvFILE, FTPfolders, destURL, th
     messagebox.showinfo("Done", "You can now visit http://bcausam.co.uk/charities-tables-update/ and wait until page is loaded to update your database ")
     webbrowser.open(destURL)
 
-# classPath = 'C:/Users/glebs/Downloads/publicextract.charity/publicextract.charity.json'
-# print(GetJSON(classPath)[0])
-
-
-# encapsulation(constants_final.FILENAME_JSON+constants_final.EXTENSION_JSON,
-#               constants_final.FILENAME_CSV+constants_final.EXTENSION_CSV,
-#               constants_final.FTP_PATH)
 
 
 # Callback function to resolve path from filedialog and insert it into appropriate entry filed.
@@ -220,7 +228,7 @@ tkinter.Label(window, text="general details json file").grid(row=4)
 tkinter.Label(window, text="path").grid(row=5)
 tkinter.Label(window, text="minimum expenditure threshold").grid(row=6)
 tkinter.Label(window, text="Update script destination").grid(row=7)
-
+# #
 # Input fields
 host = tkinter.Entry(window)
 username = tkinter.Entry(window)
